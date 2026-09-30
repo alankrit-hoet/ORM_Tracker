@@ -70,13 +70,16 @@ export GOOGLE_OAUTH_CLIENT_SECRETS=/path/to/client_secrets.json
 python -m orm_tracker.auth
 ```
 
-**B. Service account** — cleaner for unattended runs, but somebody with the
-**Manager** role on the Shared Drive has to add the service account as a
-member. Content Manager cannot do this.
+**B. Service account** — cleaner for unattended runs. Note that *creating*
+the service account and *giving it access to the drive* are separate steps,
+and only the second one needs privileges: adding a member to a Shared Drive
+requires the **Manager** role. Content Manager cannot do it.
 
 1. Create the service account, enable the Drive and Sheets APIs, download the
    JSON key.
-2. Add its email as a member of the Shared Drive, and as an Editor on the Sheet.
+2. Add its email **as a member of the Shared Drive** (Content Manager is a
+   fine role for it). Sharing just the folder with it is unreliable inside a
+   Shared Drive — membership is what consistently works.
 
 ```bash
 export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
@@ -86,9 +89,28 @@ Then, either way:
 
 ```bash
 pip install -r requirements.txt
-# fill in drive.root_folder_id and sheet.spreadsheet_id in config.yaml
-python -m orm_tracker.cli
+# put your Drive folder id in config.yaml, then prove the wiring works:
+python -m orm_tracker.cli --check
 ```
+
+`--check` walks the whole chain — credentials, folder access, folder naming,
+opening real transcripts, Sheet write access — and tells you which link is
+broken. Run it before the first real run. An ORM tracker fails *quietly*: a
+wrong account and a quiet weekend both produce zero rows.
+
+### Creating the Sheet
+
+Do not let a service account create the Sheet in its own Drive — it would be
+owned by the service account, invisible to your team, and against a storage
+quota it does not have. Create it inside a Drive folder instead:
+
+```bash
+python -m orm_tracker.cli --create-sheet <drive-folder-id-or-url>
+```
+
+The Sheet then belongs to that Shared Drive, your team can open it, and the
+command prints the id to paste into `config.yaml`. Creating it by hand and
+sharing it with the service account as Editor works equally well.
 
 `token.json`, `client_secrets.json` and `service-account.json` are all
 gitignored. Do not commit them.
@@ -117,6 +139,8 @@ python -m orm_tracker.cli --csv-only --csv out/orm_tracker.csv
 | `--full` | ignore `state.json` and reprocess every session |
 | `--no-state` | do not write `state.json` |
 | `--csv-only` / `--csv` | skip the Sheet; write a CSV |
+| `--check` | verify the whole chain and exit |
+| `--create-sheet` | create the tracker Sheet in a Drive folder and exit |
 
 ## Keeping the Sheet in step with Drive
 
@@ -167,4 +191,5 @@ python -m pytest tests -q
 | `sheets.py` | upsert rows by key |
 | `rows.py` | the output row schema |
 | `auth.py` | OAuth-as-you or service-account credentials |
+| `check.py` | preflight diagnostics (`--check`) |
 | `cli.py` | wiring, incremental state, CSV fallback |

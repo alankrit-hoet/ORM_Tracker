@@ -13,6 +13,9 @@ from googleapiclient.http import MediaIoBaseDownload
 from .config import DriveConfig
 
 SCOPES_RO = ["https://www.googleapis.com/auth/drive.readonly"]
+# drive.file grants access only to files this app itself creates -- enough to
+# create the tracker Sheet, and nothing more.
+SCOPES_CREATE = ["https://www.googleapis.com/auth/drive.file"]
 
 _FOLDER = "application/vnd.google-apps.folder"
 _SHORTCUT = "application/vnd.google-apps.shortcut"
@@ -53,6 +56,11 @@ class TranscriptFile:
 class DriveClient:
     def __init__(self, credentials):
         self._svc = build("drive", "v3", credentials=credentials, cache_discovery=False)
+
+    @property
+    def service(self):
+        """The underlying Drive API service, for callers that need raw access."""
+        return self._svc
 
     def _list(self, query: str) -> list[dict]:
         files: list[dict] = []

@@ -11,6 +11,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import check as check_mod
 from . import config as config_mod
 from . import detect, llm, transcript
 from .auth import credentials as _credentials
@@ -175,12 +176,14 @@ def run(args: argparse.Namespace) -> int:
     state = {} if args.full else _load_state(state_path)
 
     # Imported here, not at module load, so --local-dir needs no Google SDK.
-    from .drive import SCOPES_RO, DriveClient, folder_id_from
+    from .drive import SCOPES_CREATE, SCOPES_RO, DriveClient, folder_id_from
     from .sheets import SCOPES_RW, SheetWriter
 
     scopes = list(SCOPES_RO)
     if cfg.sheet.spreadsheet_id and not args.csv_only:
         scopes += SCOPES_RW
+    if args.create_sheet:
+        scopes += SCOPES_CREATE + SCOPES_RW
     if args.folder:
         cfg = dataclasses.replace(
             cfg,
@@ -189,7 +192,28 @@ def run(args: argparse.Namespace) -> int:
             ),
         )
 
-    drive = DriveClient(_credentials(scopes))
+    creds = _credentials(scopes)
+    drive = DriveClient(creds)
+
+    if args.create_sheet:
+        from .sheets import create_spreadsheet
+
+        new_id = create_spreadsheet(
+            drive.service, args.sheet_title, folder_id_from(args.create_sheet)
+        )
+        print(f"created Sheet {new_id}")
+        print(f"  https://docs.google.com/spreadsheets/d/{new_id}/edit")
+        print("  put this in config.yaml as sheet.spreadsheet_id")
+        return 0
+
+    writer = (
+        SheetWriter(creds, cfg.sheet.spreadsheet_id, cfg.sheet.worksheet)
+        if cfg.sheet.spreadsheet_id and not args.csv_only
+        else None
+    )
+
+    if args.check:
+        return check_mod.report(check_mod.run(drive, cfg, writer))
 
     folders, skipped = drive.session_folders(cfg.drive)
     print(f"session folders matched: {len(folders)}")
@@ -235,10 +259,7 @@ def run(args: argparse.Namespace) -> int:
         print("no new or changed sessions")
         return 0
 
-    if cfg.sheet.spreadsheet_id and not args.csv_only:
-        writer = SheetWriter(
-            _credentials(scopes), cfg.sheet.spreadsheet_id, cfg.sheet.worksheet
-        )
+    if writer is not None:
         updated, appended = writer.upsert(rows)
         print(f"sheet: {appended} row(s) added, {updated} updated")
     else:
@@ -263,6 +284,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--full", action="store_true", help="reprocess every session")
     parser.add_argument("--no-state", action="store_true", help="do not persist state")
     parser.add_argument("--csv-only", action="store_true", help="skip the Sheet")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="verify credentials, folder access, transcripts and Sheet, then exit",
+    )
+    parser.add_argument(
+        "--create-sheet",
+        metavar="PARENT_FOLDER",
+        help="create the tracker Sheet in this Drive folder (id or URL) and exit",
+    )
+    parser.add_argument("--sheet-title", default="ORM Activity Tracker")
     parser.add_argument("--csv", default=DEFAULT_CSV)
     return run(parser.parse_args(argv))
 

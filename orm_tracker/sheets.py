@@ -49,19 +49,32 @@ class SheetWriter:
             return []
         return resp.get("values", [])
 
+    def _ensure_headers(self) -> list[list[str]]:
+        existing = self._read()
+        if existing and [c.strip() for c in existing[0][: len(HEADERS)]] == HEADERS:
+            return existing
+        self._svc.spreadsheets().values().update(
+            spreadsheetId=self._id,
+            range=_a1(self._ws, "A1"),
+            valueInputOption="RAW",
+            body={"values": [HEADERS]},
+        ).execute()
+        return [HEADERS]
+
+    def probe(self) -> None:
+        """Prove write access now, rather than after a long scan.
+
+        Creating the worksheet and its header row is idempotent and is work
+        the first real run would do anyway, so this is a genuine write test
+        with nothing to undo.
+        """
+        self._ensure_worksheet()
+        self._ensure_headers()
+
     def upsert(self, rows: list[Row]) -> tuple[int, int]:
         """Write rows. Returns (updated, appended)."""
         self._ensure_worksheet()
-        existing = self._read()
-
-        if not existing or [c.strip() for c in existing[0][: len(HEADERS)]] != HEADERS:
-            self._svc.spreadsheets().values().update(
-                spreadsheetId=self._id,
-                range=_a1(self._ws, "A1"),
-                valueInputOption="RAW",
-                body={"values": [HEADERS]},
-            ).execute()
-            existing = [HEADERS]
+        existing = self._ensure_headers()
 
         # Row number in the sheet (1-indexed, header is row 1).
         index = {
@@ -98,3 +111,28 @@ class SheetWriter:
             ).execute()
 
         return len(updates), len(appends)
+
+
+def create_spreadsheet(drive_service, title: str, parent_folder_id: str) -> str:
+    """Create the tracker Sheet inside a Drive folder and return its id.
+
+    Created through the Drive API with a parent, not the Sheets API: a file a
+    service account creates in its own Drive is owned by the service account,
+    which nobody on your team can open and which has no storage quota of its
+    own. Created inside a Shared Drive folder it belongs to the drive, so the
+    team sees it and the quota is the drive's.
+    """
+    created = (
+        drive_service.files()
+        .create(
+            body={
+                "name": title,
+                "mimeType": "application/vnd.google-apps.spreadsheet",
+                "parents": [parent_folder_id],
+            },
+            fields="id",
+            supportsAllDrives=True,
+        )
+        .execute()
+    )
+    return created["id"]

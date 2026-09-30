@@ -103,10 +103,10 @@ def authorise(scopes: list[str]) -> Path:
 
 
 def main() -> int:
-    from .drive import SCOPES_RO
+    from .drive import SCOPES_CREATE, SCOPES_RO
     from .sheets import SCOPES_RW
 
-    path = authorise(list(SCOPES_RO) + list(SCOPES_RW))
+    path = authorise(list(SCOPES_RO) + list(SCOPES_CREATE) + list(SCOPES_RW))
     print(f"authorised; token written to {path}")
     print("Keep this file out of git. It is already in .gitignore.")
     return 0
