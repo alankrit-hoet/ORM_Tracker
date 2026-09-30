@@ -55,20 +55,43 @@ never pitched it", the parser raises and the session is reported as skipped.
 
 ## Setup
 
-1. **Service account.** Create one in Google Cloud, enable the Drive and Sheets
-   APIs, download the JSON key.
-2. **Grant it access.** Add the service account's email as a **Viewer** on the
-   Drive folder (for a Shared Drive, add it as a member) and as an **Editor**
-   on the target Sheet. Nothing works until this is done — the account that
-   authorises the API is not your account.
-3. **Fill in `config.yaml`**: `drive.root_folder_id` and `sheet.spreadsheet_id`.
-4. Install and run:
+Pick the credential route that matches your access to the Drive folder.
+
+**A. OAuth as yourself** — works with **Content Manager** on a Shared Drive,
+so this is the route if you cannot administer the drive.
+
+1. In Google Cloud: enable the Drive and Sheets APIs, create an OAuth client
+   of type **Desktop app**, download the JSON.
+2. Authorise once. This opens a browser, then writes `token.json` containing a
+   refresh token; every run after this is unattended.
+
+```bash
+export GOOGLE_OAUTH_CLIENT_SECRETS=/path/to/client_secrets.json
+python -m orm_tracker.auth
+```
+
+**B. Service account** — cleaner for unattended runs, but somebody with the
+**Manager** role on the Shared Drive has to add the service account as a
+member. Content Manager cannot do this.
+
+1. Create the service account, enable the Drive and Sheets APIs, download the
+   JSON key.
+2. Add its email as a member of the Shared Drive, and as an Editor on the Sheet.
+
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+```
+
+Then, either way:
 
 ```bash
 pip install -r requirements.txt
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+# fill in drive.root_folder_id and sheet.spreadsheet_id in config.yaml
 python -m orm_tracker.cli
 ```
+
+`token.json`, `client_secrets.json` and `service-account.json` are all
+gitignored. Do not commit them.
 
 ## Running it
 
@@ -106,8 +129,10 @@ The Drive folder grows, so the tracker is designed to be run repeatedly:
   with that key rather than appending a duplicate, so re-running after
   tightening keywords corrects the record in place.
 - **Scheduled.** `.github/workflows/orm-tracker.yml` runs it Monday mornings
-  IST. Add repository secrets `GOOGLE_SERVICE_ACCOUNT_JSON` and, if you enable
-  stage 2, `ANTHROPIC_API_KEY`.
+  IST. Add the contents of `token.json` as the repository secret
+  `GOOGLE_OAUTH_TOKEN_JSON` (or the service account key as
+  `GOOGLE_SERVICE_ACCOUNT_JSON`), plus `ANTHROPIC_API_KEY` if you enable
+  stage 2.
 
 Rows are never deleted. An activity with no detected pitch is written as a
 `Detected = No` row, so "we checked and it did not happen" is distinguishable
@@ -141,4 +166,5 @@ python -m pytest tests -q
 | `drive.py` | enumerate session folders, fetch transcripts (Shared Drive aware) |
 | `sheets.py` | upsert rows by key |
 | `rows.py` | the output row schema |
+| `auth.py` | OAuth-as-you or service-account credentials |
 | `cli.py` | wiring, incremental state, CSV fallback |

@@ -13,31 +13,12 @@ from pathlib import Path
 
 from . import config as config_mod
 from . import detect, llm, transcript
+from .auth import credentials as _credentials
 from .rows import HEADERS, Row
 
 DEFAULT_CONFIG = "config.yaml"
 DEFAULT_STATE = "state.json"
 DEFAULT_CSV = "out/orm_tracker.csv"
-
-
-def _credentials(scopes: list[str]):
-    """Service-account credentials from GOOGLE_APPLICATION_CREDENTIALS.
-
-    A service account is the right fit here: no browser consent, no refresh
-    token to babysit, and it can be added to the Shared Drive as a member.
-    """
-    from google.oauth2 import service_account
-
-    path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
-    if not path:
-        raise SystemExit(
-            "GOOGLE_APPLICATION_CREDENTIALS is not set. Point it at the service "
-            "account JSON key, and give that account Viewer on the Drive folder "
-            "and Editor on the Sheet."
-        )
-    if not Path(path).is_file():
-        raise SystemExit(f"GOOGLE_APPLICATION_CREDENTIALS points at a missing file: {path}")
-    return service_account.Credentials.from_service_account_file(path, scopes=scopes)
 
 
 def _load_state(path: Path) -> dict:

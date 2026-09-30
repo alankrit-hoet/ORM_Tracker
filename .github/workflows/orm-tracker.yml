@@ -33,22 +33,31 @@ jobs:
           key: orm-tracker-state-${{ github.run_id }}
           restore-keys: orm-tracker-state-
 
-      - name: Write service account key
+      # Two supported routes. GOOGLE_OAUTH_TOKEN_JSON runs as a real person's
+      # Google account (enough with Content Manager on the Shared Drive);
+      # GOOGLE_SERVICE_ACCOUNT_JSON needs a Drive Manager to add the service
+      # account as a member. Set whichever one you have.
+      - name: Write credentials
         env:
           SA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          OAUTH_JSON: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON }}
         run: |
-          if [ -z "$SA_JSON" ]; then
-            echo "::error::GOOGLE_SERVICE_ACCOUNT_JSON secret is not set"
+          if [ -n "$SA_JSON" ]; then
+            printf '%s' "$SA_JSON" > "$RUNNER_TEMP/creds.json"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/creds.json" >> "$GITHUB_ENV"
+          elif [ -n "$OAUTH_JSON" ]; then
+            printf '%s' "$OAUTH_JSON" > "$RUNNER_TEMP/creds.json"
+            echo "GOOGLE_OAUTH_TOKEN=$RUNNER_TEMP/creds.json" >> "$GITHUB_ENV"
+          else
+            echo "::error::set GOOGLE_OAUTH_TOKEN_JSON or GOOGLE_SERVICE_ACCOUNT_JSON"
             exit 1
           fi
-          printf '%s' "$SA_JSON" > "$RUNNER_TEMP/sa.json"
 
       - name: Run tracker
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           python -m orm_tracker.cli ${{ inputs.full && '--full' || '' }}
 
       - if: always()
-        run: rm -f "$RUNNER_TEMP/sa.json"
+        run: rm -f "$RUNNER_TEMP/creds.json"
