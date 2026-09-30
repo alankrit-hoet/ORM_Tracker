@@ -1,0 +1,143 @@
+# ORM Activity Tracker configuration.
+# This file is version-controlled on purpose: the keyword list IS the tracker's
+# logic, and changes to it should be reviewable. Credentials never live here --
+# they come from environment variables (see README).
+
+drive:
+  # The Drive folder that holds one sub-folder per session.
+  root_folder_id: "0ANIiH5ZbK42NUk9PVA"
+
+  # Session folders are named "<date>-<batch>-<session title>".
+  # Named groups date / batch / title are written straight to the sheet.
+  folder_name_pattern: '^\s*(?P<date>[^-]+?)\s*-\s*(?P<batch>[^-]+?)\s*-\s*(?P<title>.+?)\s*$'
+
+  # A file in a session folder is treated as the transcript when its lowercased
+  # name contains any of these. First match wins, ordered by preference.
+  transcript_name_hints:
+    - ".vtt"
+    - "transcript"
+    - ".srt"
+
+sheet:
+  # Leave blank to run local-only (writes out/orm_tracker.csv instead).
+  spreadsheet_id: ""
+  worksheet: "ORM Tracker"
+
+detection:
+  # Transcript cues are grouped into rolling windows of this many seconds.
+  window_seconds: 90
+  # A window must score at least this much AND contain >=1 strong keyword.
+  min_score: 2.0
+  strong_weight: 2.0
+  support_weight: 0.5
+  # Hits closer together than this are merged into one pitch.
+  merge_gap_seconds: 180
+  # Report every pitch of an activity, or only the first.
+  report: "all"          # "all" | "first"
+
+  # Optional second pass: send each keyword candidate to Claude to confirm it
+  # is a real pitch and not an incidental mention. Needs ANTHROPIC_API_KEY.
+  # Off by default so the tracker runs with zero API cost.
+  llm_confirm: false
+  llm_model: "claude-sonnet-5-5"
+
+# ---------------------------------------------------------------------------
+# The ORM activities to look for. THIS IS THE PART YOU MAINTAIN.
+#
+#   strong_keywords  - naming this activity specifically. One is required for a
+#                      window to count. Keep these unambiguous.
+#   support_keywords - pitch language that raises confidence but never fires on
+#                      its own ("do me a favour", "5 star", "link in chat").
+#   exclude_keywords - if present in the window, the window is discarded.
+#
+# Matching is case-insensitive and whole-word (so "orm" will not match "form").
+# Multi-word entries are matched as phrases.
+# ---------------------------------------------------------------------------
+activities:
+  - id: lms_adoption
+    name: "LMS Adoption"
+    description: >
+      The trainer asks learners to log in to, open, or complete work on the
+      LMS / learning portal.
+    strong_keywords:
+      - "lms"
+      - "learning management system"
+      - "learning portal"
+      - "course portal"
+    support_keywords:
+      - "log in"
+      - "login"
+      - "dashboard"
+      - "complete the module"
+      - "mark it complete"
+      - "assignment"
+      - "link in the chat"
+
+  - id: linkedin_orm
+    name: "LinkedIn ORM"
+    description: >
+      The trainer asks learners to post on LinkedIn about the programme, tag
+      the company, or share their certificate / learning publicly.
+    strong_keywords:
+      - "linkedin"
+    support_keywords:
+      - "post"
+      - "tag us"
+      - "tag the page"
+      - "share your"
+      - "certificate"
+      - "hashtag"
+      - "profile"
+
+  - id: win_of_the_week
+    name: "Win of the Week"
+    description: >
+      The trainer invites learners to share a win, result, or success story
+      from applying what they learnt.
+    strong_keywords:
+      - "win of the week"
+      - "wins of the week"
+      - "success story"
+      - "success stories"
+    support_keywords:
+      - "share your win"
+      - "drop it in the chat"
+      - "community"
+      - "group"
+
+  - id: google_review
+    name: "Google Review / Rating"
+    description: >
+      The trainer asks learners to leave a rating or review (Google, Trustpilot,
+      app store, feedback form scored out of 5).
+    strong_keywords:
+      - "google review"
+      - "google rating"
+      - "trustpilot"
+      - "play store"
+      - "leave a review"
+      - "write a review"
+      - "5 star"
+      - "five star"
+    support_keywords:
+      - "rate us"
+      - "rating"
+      - "feedback form"
+      - "do me a favour"
+      - "two minutes"
+    exclude_keywords:
+      - "let us review"
+      - "quick review of"
+
+  - id: referral
+    name: "Referral"
+    description: >
+      The trainer asks learners to refer a friend or colleague to the programme.
+    strong_keywords:
+      - "refer a friend"
+      - "referral"
+      - "refer someone"
+    support_keywords:
+      - "colleague"
+      - "discount"
+      - "link"

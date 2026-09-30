@@ -1,0 +1,54 @@
+name: ORM tracker
+
+on:
+  schedule:
+    # 03:15 UTC Monday = 08:45 IST, after the weekend's sessions are uploaded.
+    - cron: "15 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Reprocess every session, ignoring cached state"
+        type: boolean
+        default: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # state.json lets the tracker skip sessions whose transcript has not
+      # changed. Losing the cache costs time, never correctness -- rows are
+      # upserted by key.
+      - uses: actions/cache@v4
+        with:
+          path: state.json
+          key: orm-tracker-state-${{ github.run_id }}
+          restore-keys: orm-tracker-state-
+
+      - name: Write service account key
+        env:
+          SA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$SA_JSON" ]; then
+            echo "::error::GOOGLE_SERVICE_ACCOUNT_JSON secret is not set"
+            exit 1
+          fi
+          printf '%s' "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+
+      - name: Run tracker
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python -m orm_tracker.cli ${{ inputs.full && '--full' || '' }}
+
+      - if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"
