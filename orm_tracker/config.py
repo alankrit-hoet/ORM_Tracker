@@ -1,9 +1,9 @@
-"""Configuration loading and validation."""
+"""Load and validate config.yaml: the ORM activities and how strict to be."""
 
 from __future__ import annotations
 
-import re
-from dataclasses import dataclass, field
+import dataclasses
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -21,23 +21,6 @@ class Activity:
 
 
 @dataclass(frozen=True)
-class DriveConfig:
-    root_folder_id: str
-    folder_name_pattern: str
-    transcript_name_hints: tuple[str, ...]
-
-    @property
-    def folder_regex(self) -> re.Pattern[str]:
-        return re.compile(self.folder_name_pattern)
-
-
-@dataclass(frozen=True)
-class SheetConfig:
-    spreadsheet_id: str = ""
-    worksheet: str = "ORM Tracker"
-
-
-@dataclass(frozen=True)
 class DetectionConfig:
     window_seconds: int = 90
     min_score: float = 2.0
@@ -51,10 +34,8 @@ class DetectionConfig:
 
 @dataclass(frozen=True)
 class Config:
-    drive: DriveConfig
-    sheet: SheetConfig
     detection: DetectionConfig
-    activities: tuple[Activity, ...] = field(default=())
+    activities: tuple[Activity, ...] = ()
 
 
 def _activity(raw: dict[str, Any]) -> Activity:
@@ -77,30 +58,6 @@ def _activity(raw: dict[str, Any]) -> Activity:
 
 def load(path: str | Path) -> Config:
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
-
-    drive_raw = raw.get("drive") or {}
-    if not drive_raw.get("root_folder_id"):
-        raise ValueError("drive.root_folder_id is required")
-
-    drive = DriveConfig(
-        root_folder_id=str(drive_raw["root_folder_id"]),
-        folder_name_pattern=str(
-            drive_raw.get("folder_name_pattern")
-            or r"^\s*(?P<date>[^-]+?)\s*-\s*(?P<batch>[^-]+?)\s*-\s*(?P<title>.+?)\s*$"
-        ),
-        transcript_name_hints=tuple(
-            str(h).lower()
-            for h in drive_raw.get("transcript_name_hints", [".vtt", "transcript", ".srt"])
-        ),
-    )
-    # Fail at load time rather than mid-scan on a bad pattern.
-    drive.folder_regex
-
-    sheet_raw = raw.get("sheet") or {}
-    sheet = SheetConfig(
-        spreadsheet_id=str(sheet_raw.get("spreadsheet_id", "") or ""),
-        worksheet=str(sheet_raw.get("worksheet", "ORM Tracker")),
-    )
 
     det_raw = raw.get("detection") or {}
     detection = DetectionConfig(
@@ -126,4 +83,4 @@ def load(path: str | Path) -> Config:
             raise ValueError(f"duplicate activity id {a.id!r}")
         seen.add(a.id)
 
-    return Config(drive=drive, sheet=sheet, detection=detection, activities=activities)
+    return Config(detection=detection, activities=activities)

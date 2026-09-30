@@ -1,8 +1,4 @@
 __pycache__/
 *.pyc
 .venv/
-service-account.json
-state.json
 out/
-token.json
-client_secrets.json

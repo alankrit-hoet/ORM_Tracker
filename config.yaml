@@ -1,27 +1,7 @@
 # ORM Activity Tracker configuration.
-# This file is version-controlled on purpose: the keyword list IS the tracker's
-# logic, and changes to it should be reviewable. Credentials never live here --
-# they come from environment variables (see README).
-
-drive:
-  # The Drive folder that holds one sub-folder per session.
-  root_folder_id: "0ANIiH5ZbK42NUk9PVA"
-
-  # Session folders are named "<date>-<batch>-<session title>".
-  # Named groups date / batch / title are written straight to the sheet.
-  folder_name_pattern: '^\s*(?P<date>[^-]+?)\s*-\s*(?P<batch>[^-]+?)\s*-\s*(?P<title>.+?)\s*$'
-
-  # A file in a session folder is treated as the transcript when its lowercased
-  # name contains any of these. First match wins, ordered by preference.
-  transcript_name_hints:
-    - ".vtt"
-    - "transcript"
-    - ".srt"
-
-sheet:
-  # Leave blank to run local-only (writes out/orm_tracker.csv instead).
-  spreadsheet_id: ""
-  worksheet: "ORM Tracker"
+# This is the whole tracker: the ORM activities and the words that identify each.
+# Edit the keyword lists to match how your trainers actually pitch. Credentials
+# are not needed -- you feed transcripts in by hand.
 
 detection:
   # Transcript cues are grouped into rolling windows of this many seconds.
